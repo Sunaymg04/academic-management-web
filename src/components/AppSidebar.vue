@@ -1,14 +1,13 @@
 <script setup>
 import {
-  BarChart3,
-  BookOpen,
   Building2,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
-  FileText,
+  FilePenLine,
   GraduationCap,
-  Home,
+  ReceiptText,
+  School,
   Users,
 } from '@lucide/vue'
 import { RouterLink } from 'vue-router'
@@ -19,13 +18,11 @@ const ui = useUiStore()
 const labels = {
   es: {
     university: 'Universidad Nacional',
-    dashboard: 'Dashboard',
-    careers: 'Carreras',
-    plans: 'Planes de Estudio',
-    requests: 'Solicitudes',
     students: 'Estudiantes',
     enrollments: 'Matrícula',
-    reports: 'Reportes',
+    payments: 'Pagos',
+    courses: 'Asignaturas',
+    grades: 'Notas',
     office: 'Vicerrectorado Académico',
     version: 'Versión 1.0.0',
     collapse: 'Colapsar menú',
@@ -33,13 +30,11 @@ const labels = {
   },
   en: {
     university: 'National University',
-    dashboard: 'Dashboard',
-    careers: 'Programs',
-    plans: 'Study Plans',
-    requests: 'Requests',
     students: 'Students',
     enrollments: 'Enrollment',
-    reports: 'Reports',
+    payments: 'Payments',
+    courses: 'Courses',
+    grades: 'Grades',
     office: 'Academic Vice-Rectorate',
     version: 'Version 1.0.0',
     collapse: 'Collapse menu',
@@ -48,13 +43,11 @@ const labels = {
 }
 
 const navItems = [
-  { key: 'dashboard', icon: Home },
-  { key: 'careers', icon: GraduationCap },
-  { key: 'plans', icon: BookOpen },
-  { key: 'requests', icon: FileText },
   { key: 'students', icon: Users, to: '/students' },
   { key: 'enrollments', icon: ClipboardCheck, to: '/enrollments' },
-  { key: 'reports', icon: BarChart3 },
+  { key: 'payments', icon: ReceiptText, to: '/payments' },
+  { key: 'courses', icon: School, to: '/courses' },
+  { key: 'grades', icon: FilePenLine, to: '/grades' },
 ]
 
 function t(key) {

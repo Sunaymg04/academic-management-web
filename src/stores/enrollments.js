@@ -178,6 +178,34 @@ export const useEnrollmentsStore = defineStore('enrollments', () => {
     return updateStatus(enrollmentId, 'Cancelled')
   }
 
+  function validatePayment(enrollmentId, paymentReference) {
+    const studentsStore = useStudentsStore()
+    const index = enrollments.value.findIndex((enrollment) => enrollment.id === enrollmentId)
+
+    if (index === -1) return { ok: false, message: 'Enrollment was not found.' }
+
+    const today = new Date().toISOString().slice(0, 10)
+
+    enrollments.value[index] = {
+      ...enrollments.value[index],
+      status: 'Enrolled',
+      paymentReference,
+      updatedAt: today,
+      history: [
+        {
+          date: today,
+          title: 'Payment validated',
+          detail: `Payment ${paymentReference} validated and enrollment moved to Enrolled.`,
+        },
+        ...enrollments.value[index].history,
+      ],
+    }
+
+    studentsStore.applyEnrollment(enrollments.value[index].studentId, enrollments.value[index])
+
+    return { ok: true, enrollment: enrollments.value[index] }
+  }
+
   function selectEnrollment(enrollmentId) {
     selectedEnrollmentId.value = enrollmentId
   }
@@ -200,6 +228,7 @@ export const useEnrollmentsStore = defineStore('enrollments', () => {
     confirmPayment,
     markEnrolled,
     cancelEnrollment,
+    validatePayment,
     selectEnrollment,
   }
 })
