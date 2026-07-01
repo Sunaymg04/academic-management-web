@@ -173,8 +173,8 @@ function formatDate(value) {
   return new Intl.DateTimeFormat(ui.language === 'es' ? 'es-ES' : 'en-US').format(date)
 }
 
-function createCourse() {
-  const result = coursesStore.createCourse({ ...form })
+async function createCourse() {
+  const result = await coursesStore.createCourse({ ...form })
 
   feedback.value = result.ok ? t('created') : result.message
 }
@@ -184,10 +184,10 @@ function selectCourse(courseId) {
   selectedStudentId.value = selectedEligibleStudents.value[0]?.id ?? ''
 }
 
-function assignSelectedStudent() {
+async function assignSelectedStudent() {
   if (!selectedCourse.value || !selectedStudentId.value) return
 
-  const result = coursesStore.assignStudent(selectedCourse.value.id, selectedStudentId.value)
+  const result = await coursesStore.assignStudent(selectedCourse.value.id, selectedStudentId.value)
 
   feedback.value = result.ok ? '' : result.message
   selectedStudentId.value = selectedEligibleStudents.value[0]?.id ?? ''

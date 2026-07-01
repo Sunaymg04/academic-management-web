@@ -210,9 +210,9 @@ function parseStudentCourseKey(value) {
   return { studentId, courseId }
 }
 
-function saveGrade() {
+async function saveGrade() {
   const { studentId, courseId } = parseStudentCourseKey(form.studentCourseKey)
-  const result = gradesStore.upsertGrade({
+  const result = await gradesStore.upsertGrade({
     studentId,
     courseId,
     score: form.score,
@@ -227,10 +227,10 @@ function saveGrade() {
   }
 }
 
-function completeSelectedRecord() {
+async function completeSelectedRecord() {
   if (!selectedRecord.value) return
 
-  const result = gradesStore.completeRecord(selectedRecord.value.id, form.reason)
+  const result = await gradesStore.completeRecord(selectedRecord.value.id, form.reason)
 
   feedback.value = result.ok ? t('saved') : result.message
   if (result.ok) form.reason = ''

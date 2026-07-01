@@ -179,8 +179,8 @@ function formatDate(value) {
   return new Intl.DateTimeFormat(ui.language === 'es' ? 'es-ES' : 'en-US').format(date)
 }
 
-function generateCertificate() {
-  const result = certificatesStore.generateCertificate({ ...form })
+async function generateCertificate() {
+  const result = await certificatesStore.generateCertificate({ ...form })
 
   feedback.value = result.ok ? `${result.certificate.id} ${t('generated').toLowerCase()}` : result.message
   form.purpose = ''

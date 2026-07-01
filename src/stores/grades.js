@@ -1,50 +1,30 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
+import { api, apiMessage, unwrapData } from '@/services/api'
+import { normalizeGrade } from '@/services/normalizers'
 import { useCoursesStore } from '@/stores/courses'
 import { useStudentsStore } from '@/stores/students'
-
-function buildGradeId(sequence) {
-  return `GRD-2026-${String(sequence).padStart(4, '0')}`
-}
-
-function resolveStatus(score, completed = false) {
-  if (completed) return 'Completed'
-  if (score === '' || score === null || Number.isNaN(Number(score))) return 'Pending Grade'
-
-  return Number(score) >= 60 ? 'Passed' : 'Failed'
-}
 
 export const useGradesStore = defineStore('grades', () => {
   const gradeRecords = ref([])
   const selectedRecordId = ref(null)
+  const loading = ref(false)
+  const error = ref('')
 
   const selectedRecord = computed(
     () => gradeRecords.value.find((record) => record.id === selectedRecordId.value) ?? gradeRecords.value[0],
   )
-
-  const pendingCount = computed(
-    () => gradeRecords.value.filter((record) => record.status === 'Pending Grade').length,
-  )
-  const passedCount = computed(
-    () => gradeRecords.value.filter((record) => record.status === 'Passed').length,
-  )
-  const failedCount = computed(
-    () => gradeRecords.value.filter((record) => record.status === 'Failed').length,
-  )
-  const completedCount = computed(
-    () => gradeRecords.value.filter((record) => record.status === 'Completed').length,
-  )
-
+  const pendingCount = computed(() => gradeRecords.value.filter((record) => record.status === 'Pending Grade').length)
+  const passedCount = computed(() => gradeRecords.value.filter((record) => record.status === 'Passed').length)
+  const failedCount = computed(() => gradeRecords.value.filter((record) => record.status === 'Failed').length)
+  const completedCount = computed(() => gradeRecords.value.filter((record) => record.status === 'Completed').length)
   const gradeAverage = computed(() => {
-    const numericGrades = gradeRecords.value
-      .map((record) => record.score)
-      .filter((score) => score !== null && score !== '')
+    const numericGrades = gradeRecords.value.map((record) => record.score).filter((score) => score !== null && score !== '')
 
     if (!numericGrades.length) return 0
 
     return Math.round((numericGrades.reduce((total, score) => total + Number(score), 0) / numericGrades.length) * 10) / 10
   })
-
   const gradableStudents = computed(() => {
     const coursesStore = useCoursesStore()
     const studentsStore = useStudentsStore()
@@ -52,13 +32,13 @@ export const useGradesStore = defineStore('grades', () => {
 
     coursesStore.courses.forEach((course) => {
       course.studentIds.forEach((studentId) => {
-        const student = studentsStore.students.find((item) => item.id === studentId)
+        const student = studentsStore.students.find((item) => item.id === studentId || item.apiId === studentId)
 
         if (student) {
           rows.push({
-            studentId,
+            studentId: student.id,
             courseId: course.id,
-            label: `${student.id} · ${student.firstName} ${student.lastName} · ${course.subjectCode}`,
+            label: `${student.id} - ${student.firstName} ${student.lastName} - ${course.subjectCode}`,
           })
         }
       })
@@ -67,119 +47,104 @@ export const useGradesStore = defineStore('grades', () => {
     return rows
   })
 
-  function findExistingRecord(courseId, studentId) {
-    return gradeRecords.value.find(
-      (record) => record.courseId === courseId && record.studentId === studentId,
-    )
+  async function fetchGrades(params = {}) {
+    loading.value = true
+    error.value = ''
+
+    try {
+      const response = await api.get('/grades', { params })
+      const rows = unwrapData(response).map(normalizeGrade)
+
+      gradeRecords.value = rows
+      selectedRecordId.value = rows[0]?.id ?? null
+
+      return { ok: true, gradeRecords: rows }
+    } catch (requestError) {
+      error.value = apiMessage(requestError, 'No se pudieron cargar las notas.')
+
+      return { ok: false, message: error.value }
+    } finally {
+      loading.value = false
+    }
   }
 
-  function upsertGrade(payload) {
+  async function upsertGrade(payload) {
+    const existing = gradeRecords.value.find(
+      (record) => record.courseId === payload.courseId && record.studentId === payload.studentId,
+    )
+    const studentsStore = useStudentsStore()
     const coursesStore = useCoursesStore()
+    const student = studentsStore.students.find((item) => item.id === payload.studentId)
     const course = coursesStore.courses.find((item) => item.id === payload.courseId)
 
     if (!course) return { ok: false, message: 'Course group was not found.' }
-    if (!course.studentIds.includes(payload.studentId)) {
-      return { ok: false, message: 'Student is not assigned to this course group.' }
+    if (existing && !payload.reason?.trim()) {
+      return { ok: false, message: 'A change reason is required to preserve academic traceability.' }
     }
 
-    const today = new Date().toISOString().slice(0, 10)
-    const existing = findExistingRecord(payload.courseId, payload.studentId)
-    const score = payload.score === '' ? null : Number(payload.score)
-    const status = resolveStatus(score)
+    try {
+      const body = {
+        student_id: student?.apiId || payload.studentId,
+        subject_offering_id: course?.apiId || payload.courseId,
+        raw_value: payload.score === '' ? null : Number(payload.score),
+        status: payload.status || 'published',
+        change_reason: payload.reason,
+      }
+      const response = existing?.apiId
+        ? await api.put(`/grades/${existing.apiId}`, body)
+        : await api.post('/grades', body)
+      const record = normalizeGrade(unwrapData(response))
 
-    if (existing) {
-      if (!payload.reason?.trim()) {
-        return { ok: false, message: 'A change reason is required to preserve academic traceability.' }
+      if (existing) {
+        const index = gradeRecords.value.findIndex((item) => item.id === existing.id)
+
+        gradeRecords.value[index] = record
+      } else {
+        gradeRecords.value.unshift(record)
       }
 
-      const index = gradeRecords.value.findIndex((record) => record.id === existing.id)
+      selectedRecordId.value = record.id
 
-      gradeRecords.value[index] = {
-        ...gradeRecords.value[index],
-        score,
-        status,
-        updatedAt: today,
-        history: [
-          {
-            date: today,
-            title: 'Grade changed',
-            detail: `Score changed from ${existing.score ?? 'Pending'} to ${score ?? 'Pending'}. Reason: ${payload.reason}.`,
-          },
-          ...gradeRecords.value[index].history,
-        ],
-      }
-
-      selectedRecordId.value = existing.id
-
-      return { ok: true, record: gradeRecords.value[index] }
+      return { ok: true, record }
+    } catch (requestError) {
+      return { ok: false, message: apiMessage(requestError, 'No se pudo guardar la nota.') }
     }
-
-    const record = {
-      id: buildGradeId(gradeRecords.value.length + 1),
-      studentId: payload.studentId,
-      courseId: payload.courseId,
-      subjectCode: course.subjectCode,
-      subjectName: course.subjectName,
-      group: course.group,
-      teacher: course.teacher,
-      score,
-      status,
-      createdAt: today,
-      updatedAt: today,
-      history: [
-        {
-          date: today,
-          title: 'Grade registered',
-          detail: `Initial score set to ${score ?? 'Pending Grade'}.`,
-        },
-      ],
-    }
-
-    gradeRecords.value.unshift(record)
-    selectedRecordId.value = record.id
-
-    return { ok: true, record }
   }
 
-  function completeRecord(recordId, reason) {
+  async function completeRecord(recordId, reason) {
     const index = gradeRecords.value.findIndex((record) => record.id === recordId)
 
     if (index === -1) return { ok: false, message: 'Grade record was not found.' }
-    if (!reason?.trim()) {
-      return { ok: false, message: 'A completion reason is required to preserve academic traceability.' }
-    }
+    if (!reason?.trim()) return { ok: false, message: 'A completion reason is required to preserve academic traceability.' }
 
-    const today = new Date().toISOString().slice(0, 10)
-
-    gradeRecords.value[index] = {
-      ...gradeRecords.value[index],
-      status: 'Completed',
-      updatedAt: today,
-      history: [
-        {
-          date: today,
-          title: 'Academic record completed',
-          detail: reason,
-        },
-        ...gradeRecords.value[index].history,
-      ],
-    }
-
-    selectedRecordId.value = recordId
-
-    return { ok: true, record: gradeRecords.value[index] }
+    return upsertGrade({
+      studentId: gradeRecords.value[index].studentId,
+      courseId: gradeRecords.value[index].courseId,
+      score: gradeRecords.value[index].score,
+      status: 'published',
+      reason,
+    })
   }
 
   function transcriptForStudent(studentId) {
     const records = gradeRecords.value.filter((record) => record.studentId === studentId)
-    const numericGrades = records
-      .map((record) => record.score)
-      .filter((score) => score !== null && score !== '')
+    const numericGrades = records.map((record) => record.score).filter((score) => score !== null && score !== '')
     const average = numericGrades.length
       ? Math.round((numericGrades.reduce((total, score) => total + Number(score), 0) / numericGrades.length) * 10) / 10
       : 0
 
     return { records, average }
+  }
+
+  async function fetchTranscriptForStudent(studentId) {
+    try {
+      const response = await api.get(`/students/${studentId}/transcript`)
+      const records = unwrapData(response).records?.map(normalizeGrade) ?? unwrapData(response).map?.(normalizeGrade) ?? []
+
+      return { ok: true, records }
+    } catch (requestError) {
+      return { ok: false, message: apiMessage(requestError), ...transcriptForStudent(studentId) }
+    }
   }
 
   function selectRecord(recordId) {
@@ -196,6 +161,10 @@ export const useGradesStore = defineStore('grades', () => {
     completedCount,
     gradeAverage,
     gradableStudents,
+    loading,
+    error,
+    fetchGrades,
+    fetchTranscriptForStudent,
     upsertGrade,
     completeRecord,
     transcriptForStudent,

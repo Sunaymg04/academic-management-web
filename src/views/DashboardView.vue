@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import {
   AlertTriangle,
   BadgeCheck,
@@ -22,6 +22,7 @@ import { useGradesStore } from '@/stores/grades'
 import { usePaymentsStore } from '@/stores/payments'
 import { useStudentsStore } from '@/stores/students'
 import { useUiStore } from '@/stores/ui'
+import { api, unwrapData } from '@/services/api'
 
 const certificatesStore = useCertificatesStore()
 const coursesStore = useCoursesStore()
@@ -36,6 +37,7 @@ const filters = reactive({
   program: '',
   academicYear: '2026',
 })
+const dashboardMetrics = ref(null)
 
 const copy = {
   es: {
@@ -123,6 +125,13 @@ const filteredStudents = computed(() =>
   }),
 )
 
+const selectedFacultyId = computed(
+  () => studentsStore.students.find((student) => student.faculty === filters.faculty)?.facultyId,
+)
+const selectedProgramId = computed(
+  () => studentsStore.students.find((student) => student.program === filters.program)?.programId,
+)
+
 const failedOrPendingAcademicProcesses = computed(
   () =>
     gradesStore.pendingCount +
@@ -174,42 +183,44 @@ const manualValidationsRequired = computed(
 const kpiCards = computed(() => [
   {
     label: t('totalStudents'),
-    value: filteredStudents.value.length,
-    helper: '+ 5.2% vs. 2025',
+    value: dashboardMetrics.value?.kpis?.total_students ?? filteredStudents.value.length,
+    helper: '',
     icon: Users,
     tone: 'blue',
   },
   {
     label: t('activeEnrollments'),
-    value: enrollmentsStore.enrolledCount,
+    value: dashboardMetrics.value?.kpis?.active_enrollments ?? enrollmentsStore.enrolledCount,
     helper: 'Enrolled',
     icon: ClipboardCheck,
     tone: 'green',
   },
   {
     label: t('pendingPayments'),
-    value: enrollmentsStore.pendingPaymentCount,
+    value: dashboardMetrics.value?.kpis?.pending_payments ?? enrollmentsStore.pendingPaymentCount,
     helper: 'Pending Payment',
     icon: ReceiptText,
     tone: 'amber',
   },
   {
     label: t('availableCourses'),
-    value: coursesWithAvailableSeats.value,
+    value: dashboardMetrics.value?.kpis?.courses_with_available_seats ?? coursesWithAvailableSeats.value,
     helper: `${coursesStore.availableSeats} ${t('seats').toLowerCase()}`,
     icon: BookOpenCheck,
     tone: 'violet',
   },
   {
     label: t('certificatesIssued'),
-    value: certificatesStore.certificates.length,
+    value: dashboardMetrics.value?.kpis?.certificates_issued ?? certificatesStore.certificates.length,
     helper: 'Generated',
     icon: FileCheck2,
     tone: 'blue',
   },
   {
     label: t('academicIssues'),
-    value: failedOrPendingAcademicProcesses.value,
+    value:
+      dashboardMetrics.value?.kpis?.failed_or_pending_processes ??
+      failedOrPendingAcademicProcesses.value,
     helper: 'Pending + failed',
     icon: AlertTriangle,
     tone: 'red',
@@ -219,39 +230,43 @@ const kpiCards = computed(() => [
 const researchCards = computed(() => [
   {
     label: t('completionTime'),
-    value: `${averageEnrollmentCompletionTime.value} ${t('days')}`,
+    value:
+      dashboardMetrics.value?.research_metrics?.average_enrollment_completion_time ??
+      `${averageEnrollmentCompletionTime.value} ${t('days')}`,
     icon: Clock3,
   },
   {
     label: t('manualValidations'),
-    value: manualValidationsRequired.value,
+    value: dashboardMetrics.value?.research_metrics?.manual_validations_required ?? manualValidationsRequired.value,
     icon: ShieldAlert,
   },
   {
     label: t('duplicates'),
-    value: duplicateRecords.value,
+    value:
+      dashboardMetrics.value?.research_metrics?.duplicate_student_records_detected ??
+      duplicateRecords.value,
     icon: BadgeCheck,
   },
   {
     label: t('certificateTime'),
-    value: certificatesStore.certificates.length ? `0.8 ${t('minutes')}` : `0 ${t('minutes')}`,
+    value:
+      dashboardMetrics.value?.research_metrics?.certificate_generation_time ??
+      `0 ${t('minutes')}`,
     icon: Gauge,
   },
 ])
 
 const enrollmentTrend = computed(() => {
-  const periods = ['2021', '2022', '2023', '2024', '2025', '2026']
-  const maxValue = Math.max(enrollmentsStore.enrollments.length, filteredStudents.value.length, 1)
+  const remoteRows = dashboardMetrics.value?.charts?.enrollments_by_period
 
-  return periods.map((period, index) => {
-    const realCount = enrollmentsStore.enrollments.filter((enrollment) =>
-      enrollment.academicPeriod.includes(period),
-    ).length
-    const fallback = Math.max(0, filteredStudents.value.length - (periods.length - index - 1))
-    const value = realCount || fallback
+  if (!remoteRows?.length) return []
 
+  const maxValue = Math.max(...remoteRows.map((item) => Number(item.value || 0)), 1)
+
+  return remoteRows.map((item) => {
+    const value = Number(item.value || 0)
     return {
-      period,
+      period: item.period,
       value,
       height: Math.max(10, Math.round((value / maxValue) * 100)),
     }
@@ -259,6 +274,15 @@ const enrollmentTrend = computed(() => {
 })
 
 const issuesByProgram = computed(() => {
+  const remoteRows = dashboardMetrics.value?.charts?.pending_processes_by_program
+
+  if (remoteRows?.length) {
+    return remoteRows.map((row) => ({
+      label: row.program || row.label || row.career,
+      value: Number(row.value || row.pending || 0),
+    }))
+  }
+
   const rows = studentsStore.programs.map((program) => {
     const pendingEnrollments = enrollmentsStore.enrollments.filter(
       (enrollment) => enrollment.program === program && enrollment.status === 'Pending Payment',
@@ -274,15 +298,7 @@ const issuesByProgram = computed(() => {
       value: pendingEnrollments + failedGrades,
     }
   })
-  const fallback = [
-    { label: 'Computer Science', value: 6 },
-    { label: 'Business Administration', value: 4 },
-    { label: 'Accounting', value: 3 },
-    { label: 'Education', value: 2 },
-    { label: 'Psychology', value: 1 },
-  ]
-
-  return rows.some((row) => row.value > 0) ? rows : fallback
+  return rows.filter((row) => row.value > 0)
 })
 
 const lineChart = computed(() => {
@@ -325,8 +341,20 @@ const lineChart = computed(() => {
   }
 })
 
-const indicatorsByProgram = computed(() =>
-  studentsStore.programs.map((program) => {
+const indicatorsByProgram = computed(() => {
+  const remoteRows = dashboardMetrics.value?.tables?.program_indicators
+
+  if (remoteRows?.length) {
+    return remoteRows.map((row) => ({
+      program: row.program || row.career || row.name,
+      students: row.students ?? row.total_students ?? 0,
+      active: row.active ?? row.active_enrollments ?? 0,
+      pending: row.pending ?? row.pending_payments ?? 0,
+      seats: row.seats ?? row.available_seats ?? 0,
+    }))
+  }
+
+  return studentsStore.programs.map((program) => {
     const students = filteredStudents.value.filter((student) => student.program === program)
     const enrollments = enrollmentsStore.enrollments.filter(
       (enrollment) => enrollment.program === program,
@@ -344,33 +372,47 @@ const indicatorsByProgram = computed(() =>
       pending: enrollments.filter((enrollment) => enrollment.status === 'Pending Payment').length,
       seats,
     }
-  }),
+  })
+})
+
+const processRows = computed(() => {
+  const remoteRows = dashboardMetrics.value?.tables?.operational_processes
+
+  if (remoteRows?.length) {
+    return remoteRows.map((row) => ({
+      module: row.module,
+      pending: row.pending ?? 0,
+      completed: row.completed ?? 0,
+    }))
+  }
+
+  return [
+    {
+      module: 'Enrollment',
+      pending: enrollmentsStore.pendingPaymentCount + enrollmentsStore.draftCount,
+      completed: enrollmentsStore.enrolledCount,
+    },
+    {
+      module: 'Payments',
+      pending: paymentsStore.registeredCount,
+      completed: paymentsStore.validatedCount,
+    },
+    {
+      module: 'Grades',
+      pending: gradesStore.pendingCount + gradesStore.failedCount,
+      completed: gradesStore.completedCount + gradesStore.passedCount,
+    },
+    {
+      module: 'Certificates',
+      pending: 0,
+      completed: certificatesStore.certificates.length,
+    },
+  ]
+})
+
+const recentCertificates = computed(
+  () => dashboardMetrics.value?.tables?.recent_certificates ?? certificatesStore.certificates.slice(0, 5),
 )
-
-const processRows = computed(() => [
-  {
-    module: 'Enrollment',
-    pending: enrollmentsStore.pendingPaymentCount + enrollmentsStore.draftCount,
-    completed: enrollmentsStore.enrolledCount,
-  },
-  {
-    module: 'Payments',
-    pending: paymentsStore.registeredCount,
-    completed: paymentsStore.validatedCount,
-  },
-  {
-    module: 'Grades',
-    pending: gradesStore.pendingCount + gradesStore.failedCount,
-    completed: gradesStore.completedCount + gradesStore.passedCount,
-  },
-  {
-    module: 'Certificates',
-    pending: 0,
-    completed: certificatesStore.certificates.length,
-  },
-])
-
-const recentCertificates = computed(() => certificatesStore.certificates.slice(0, 5))
 
 function t(key) {
   return copy[ui.language][key]
@@ -387,6 +429,23 @@ function formatDate(value) {
 
   return new Intl.DateTimeFormat(ui.language === 'es' ? 'es-ES' : 'en-US').format(date)
 }
+
+async function fetchDashboardMetrics() {
+  try {
+    const response = await api.get('/dashboard/metrics', {
+      params: {
+        faculty_id: selectedFacultyId.value,
+        career_id: selectedProgramId.value,
+      },
+    })
+
+    dashboardMetrics.value = unwrapData(response)
+  } catch {
+    dashboardMetrics.value = null
+  }
+}
+
+onMounted(fetchDashboardMetrics)
 </script>
 
 <template>
@@ -430,7 +489,7 @@ function formatDate(value) {
           <Calendar :size="18" />
         </span>
       </label>
-      <button type="button" class="primary-action">
+      <button type="button" class="primary-action" @click="fetchDashboardMetrics">
         <Filter :size="20" />
         {{ t('filter') }}
       </button>

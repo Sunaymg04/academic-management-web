@@ -1,10 +1,23 @@
 <script setup>
+import { onMounted } from 'vue'
 import { Bell, ChevronDown, Languages, Moon, Sun } from '@lucide/vue'
 import { RouterView } from 'vue-router'
 import AppSidebar from '@/components/AppSidebar.vue'
+import { useCertificatesStore } from '@/stores/certificates'
+import { useCoursesStore } from '@/stores/courses'
+import { useEnrollmentsStore } from '@/stores/enrollments'
+import { useGradesStore } from '@/stores/grades'
+import { usePaymentsStore } from '@/stores/payments'
+import { useStudentsStore } from '@/stores/students'
 import { useUiStore } from '@/stores/ui'
 
 const ui = useUiStore()
+const studentsStore = useStudentsStore()
+const enrollmentsStore = useEnrollmentsStore()
+const paymentsStore = usePaymentsStore()
+const coursesStore = useCoursesStore()
+const gradesStore = useGradesStore()
+const certificatesStore = useCertificatesStore()
 
 const labels = {
   es: {
@@ -24,6 +37,18 @@ const labels = {
 function t(key) {
   return labels[ui.language][key]
 }
+
+onMounted(async () => {
+  await Promise.allSettled([studentsStore.fetchStudents(), enrollmentsStore.fetchCatalogs()])
+  await Promise.allSettled([
+    enrollmentsStore.fetchEnrollments(),
+    paymentsStore.fetchPayments(),
+    coursesStore.fetchTeachers(),
+    coursesStore.fetchCourses(),
+    gradesStore.fetchGrades(),
+    certificatesStore.fetchCertificates(),
+  ])
+})
 </script>
 
 <template>

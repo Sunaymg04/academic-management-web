@@ -30,7 +30,7 @@ const copy = {
   es: {
     title: 'Gestión de Estudiantes',
     subtitle: 'Registro, control y seguimiento de la información estudiantil',
-    faculty: 'Facultad',
+    faculty: '',
     program: 'Carrera',
     academicStatus: 'Estado académico',
     enrollment: 'Matrícula',
@@ -95,7 +95,7 @@ const copy = {
   en: {
     title: 'Student Management',
     subtitle: 'Registration, control, and tracking of student information',
-    faculty: 'Faculty',
+    faculty: '',
     program: 'Program',
     academicStatus: 'Academic status',
     enrollment: 'Enrollment',
@@ -200,11 +200,11 @@ const emptyForm = {
   documentId: '',
   email: '',
   phone: '',
-  program: 'Computer Science',
-  faculty: 'Ingeniería',
+  program: '',
+  faculty: '',
   academicStatus: 'Active',
   enrollmentStatus: 'Pending Payment',
-  admissionTerm: '2026-I',
+  admissionTerm: '',
   admissionDate: '2026-06-30',
   academicRisk: 'Low',
   gpa: 0,
@@ -352,11 +352,11 @@ function editStudent(student = selectedStudent.value) {
   showForm.value = true
 }
 
-function submitStudent() {
+async function submitStudent() {
   const payload = { ...form }
-  const result = isEditing.value
+  const result = await (isEditing.value
     ? studentsStore.updateStudent(selectedStudent.value.id, payload)
-    : studentsStore.createStudent(payload)
+    : studentsStore.createStudent(payload))
 
   if (!result.ok) {
     feedback.value = result.message
@@ -558,19 +558,17 @@ watch(selectedStudent, () => {
         <label>
           {{ t('faculty') }}
           <select v-model="form.faculty">
-            <option>Ingeniería</option>
-            <option>Ciencias Económicas</option>
-            <option>Ciencias Sociales</option>
+            <option v-for="faculty in studentsStore.faculties" :key="faculty" :value="faculty">
+              {{ faculty }}
+            </option>
           </select>
         </label>
         <label>
           {{ t('program') }}
           <select v-model="form.program">
-            <option>Computer Science</option>
-            <option>Industrial Engineering</option>
-            <option>Business Administration</option>
-            <option>Psychology</option>
-            <option>Civil Engineering</option>
+            <option v-for="program in studentsStore.programs" :key="program" :value="program">
+              {{ program }}
+            </option>
           </select>
         </label>
         <label>
@@ -1535,3 +1533,5 @@ dd {
   }
 }
 </style>
+
+

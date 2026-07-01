@@ -204,8 +204,8 @@ function formatDate(value) {
   return new Intl.DateTimeFormat(ui.language === 'es' ? 'es-ES' : 'en-US').format(date)
 }
 
-function submitEnrollment() {
-  const result = enrollmentsStore.createEnrollment({ ...form })
+async function submitEnrollment() {
+  const result = await enrollmentsStore.createEnrollment({ ...form })
 
   feedback.value = result.ok ? t('created') : result.message
   form.subjectCodes = []

@@ -251,12 +251,12 @@ function formatMoney(value) {
   }).format(value)
 }
 
-function submitPayment() {
+async function submitPayment() {
   if (!form.enrollmentId && payableEnrollments.value[0]) {
     form.enrollmentId = payableEnrollments.value[0].id
   }
 
-  const result = paymentsStore.registerPayment({ ...form })
+  const result = await paymentsStore.registerPayment({ ...form })
 
   feedback.value = result.ok ? t('created') : result.message
   form.reference = ''
