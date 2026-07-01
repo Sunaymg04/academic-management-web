@@ -89,6 +89,8 @@ const copy = {
     term: 'Periodo',
     credits: 'Créditos',
     advisor: 'Asesor',
+    relatedEnrollments: 'Matrículas relacionadas',
+    noEnrollments: 'Sin matrículas registradas todavía.',
   },
   en: {
     title: 'Student Management',
@@ -152,6 +154,8 @@ const copy = {
     term: 'Term',
     credits: 'Credits',
     advisor: 'Advisor',
+    relatedEnrollments: 'Related enrollments',
+    noEnrollments: 'No enrollments registered yet.',
   },
 }
 
@@ -162,7 +166,10 @@ const statusLabels = {
     Graduated: 'Graduado',
     Inactive: 'Inactivo',
     'Pending Payment': 'Pago pendiente',
+    Draft: 'Borrador',
+    'Payment Confirmed': 'Pago confirmado',
     Enrolled: 'Inscrito',
+    Cancelled: 'Cancelado',
     Blocked: 'Bloqueado',
     'Under Review': 'En revisión',
     Low: 'Bajo',
@@ -175,7 +182,10 @@ const statusLabels = {
     Graduated: 'Graduated',
     Inactive: 'Inactive',
     'Pending Payment': 'Pending payment',
+    Draft: 'Draft',
+    'Payment Confirmed': 'Payment confirmed',
     Enrolled: 'Enrolled',
+    Cancelled: 'Cancelled',
     Blocked: 'Blocked',
     'Under Review': 'Under review',
     Low: 'Low',
@@ -281,13 +291,6 @@ const metricCards = computed(() => [
     helper: percentHelper(studentsStore.atRiskCount),
     tone: 'red',
     icon: TriangleAlert,
-  },
-  {
-    label: t('duplicates'),
-    value: studentsStore.duplicateValidatedCount,
-    helper: t('validated'),
-    tone: 'violet',
-    icon: ShieldCheck,
   },
 ])
 
@@ -799,6 +802,25 @@ watch(selectedStudent, () => {
           </div>
         </section>
 
+        <section class="related-enrollments">
+          <h3>{{ t('relatedEnrollments') }}</h3>
+          <ul v-if="selectedStudent.enrollments?.length">
+            <li v-for="enrollment in selectedStudent.enrollments" :key="enrollment.id">
+              <span>
+                <strong>{{ enrollment.id }}</strong>
+                {{ enrollment.academicPeriod }} · {{ enrollment.program }}
+              </span>
+              <mark class="pill" :class="statusClass(enrollment.status)">
+                {{ label(enrollment.status) }}
+              </mark>
+              <small>
+                {{ enrollment.subjects.length }} · {{ enrollment.totalCredits }} {{ t('credits') }}
+              </small>
+            </li>
+          </ul>
+          <p v-else>{{ t('noEnrollments') }}</p>
+        </section>
+
         <button type="button" class="history-button" @click="showHistory = !showHistory">
           <List :size="20" />
           {{ t('fullHistory') }}
@@ -1190,13 +1212,15 @@ progress::-webkit-progress-value {
 }
 
 .pill.graduated,
-.pill.under-review {
+.pill.under-review,
+.pill.payment-confirmed {
   color: #0969ee;
   background: #e7f1ff;
 }
 
 .pill.inactive,
 .pill.blocked,
+.pill.cancelled,
 .pill.high {
   color: #dc2434;
   background: #ffe2e5;
@@ -1314,6 +1338,56 @@ dd {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 16px;
+}
+
+.related-enrollments {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.related-enrollments h3 {
+  margin: 0 0 12px;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.related-enrollments ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.related-enrollments li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 10px;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 10px;
+}
+
+.related-enrollments li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.related-enrollments span,
+.related-enrollments small {
+  display: block;
+}
+
+.related-enrollments small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+}
+
+.related-enrollments p {
+  margin: 0;
+  color: var(--muted);
 }
 
 .tracking-line {

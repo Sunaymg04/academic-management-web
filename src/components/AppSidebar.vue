@@ -5,6 +5,7 @@ import {
   Building2,
   ChevronLeft,
   ChevronRight,
+  ClipboardCheck,
   FileText,
   GraduationCap,
   Home,
@@ -23,6 +24,7 @@ const labels = {
     plans: 'Planes de Estudio',
     requests: 'Solicitudes',
     students: 'Estudiantes',
+    enrollments: 'Matrícula',
     reports: 'Reportes',
     office: 'Vicerrectorado Académico',
     version: 'Versión 1.0.0',
@@ -36,6 +38,7 @@ const labels = {
     plans: 'Study Plans',
     requests: 'Requests',
     students: 'Students',
+    enrollments: 'Enrollment',
     reports: 'Reports',
     office: 'Academic Vice-Rectorate',
     version: 'Version 1.0.0',
@@ -50,6 +53,7 @@ const navItems = [
   { key: 'plans', icon: BookOpen },
   { key: 'requests', icon: FileText },
   { key: 'students', icon: Users, to: '/students' },
+  { key: 'enrollments', icon: ClipboardCheck, to: '/enrollments' },
   { key: 'reports', icon: BarChart3 },
 ]
 

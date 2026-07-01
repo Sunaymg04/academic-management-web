@@ -285,6 +285,48 @@ export const useStudentsStore = defineStore('students', () => {
     return { ok: true, student: students.value[index] }
   }
 
+  function applyEnrollment(studentId, enrollment) {
+    const index = students.value.findIndex((student) => student.id === studentId)
+
+    if (index === -1) return { ok: false, message: 'No se encontró el estudiante.' }
+
+    const today = new Date().toISOString().slice(0, 10)
+
+    students.value[index] = {
+      ...students.value[index],
+      program: enrollment.program,
+      faculty: enrollment.faculty,
+      enrollmentStatus: enrollment.status,
+      admissionTerm: enrollment.academicPeriod,
+      lastUpdated: today,
+      observation: `Matrícula ${enrollment.id} registrada para ${enrollment.academicPeriod} con ${enrollment.subjects.length} asignaturas seleccionadas.`,
+      enrollments: [
+        {
+          id: enrollment.id,
+          academicPeriod: enrollment.academicPeriod,
+          program: enrollment.program,
+          status: enrollment.status,
+          subjects: enrollment.subjects,
+          totalCredits: enrollment.totalCredits,
+          updatedAt: today,
+        },
+        ...(students.value[index].enrollments ?? []),
+      ],
+      history: [
+        {
+          date: today,
+          title: 'Matrícula registrada',
+          detail: `${enrollment.id} creada en estado ${enrollment.status} para ${enrollment.academicPeriod}.`,
+        },
+        ...students.value[index].history,
+      ],
+    }
+
+    selectedStudentId.value = studentId
+
+    return { ok: true, student: students.value[index] }
+  }
+
   function selectStudent(studentId) {
     selectedStudentId.value = studentId
   }
@@ -304,6 +346,7 @@ export const useStudentsStore = defineStore('students', () => {
     nextStudentId,
     createStudent,
     updateStudent,
+    applyEnrollment,
     selectStudent,
   }
 })
