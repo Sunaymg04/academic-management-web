@@ -1,8 +1,9 @@
 <script setup>
-import { onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Bell, ChevronDown, Languages, Moon, Sun } from '@lucide/vue'
 import { RouterView } from 'vue-router'
 import AppSidebar from '@/components/AppSidebar.vue'
+import { useAuthStore } from '@/stores/auth'
 import { useCertificatesStore } from '@/stores/certificates'
 import { useCoursesStore } from '@/stores/courses'
 import { useEnrollmentsStore } from '@/stores/enrollments'
@@ -12,22 +13,30 @@ import { useStudentsStore } from '@/stores/students'
 import { useUiStore } from '@/stores/ui'
 
 const ui = useUiStore()
+const auth = useAuthStore()
 const studentsStore = useStudentsStore()
 const enrollmentsStore = useEnrollmentsStore()
 const paymentsStore = usePaymentsStore()
 const coursesStore = useCoursesStore()
 const gradesStore = useGradesStore()
 const certificatesStore = useCertificatesStore()
+const authError = ref('')
 
 const labels = {
   es: {
     role: 'Analista Académica',
+    loading: 'Cargando datos academicos...',
+    retry: 'Reintentar',
+    apiErrorTitle: 'No se pudo completar la carga',
     language: 'Idioma',
     theme: 'Tema',
     notifications: 'Notificaciones',
   },
   en: {
     role: 'Academic Analyst',
+    loading: 'Loading academic data...',
+    retry: 'Retry',
+    apiErrorTitle: 'The data load could not be completed',
     language: 'Language',
     theme: 'Theme',
     notifications: 'Notifications',
@@ -38,7 +47,38 @@ function t(key) {
   return labels[ui.language][key]
 }
 
-onMounted(async () => {
+const appLoading = computed(() =>
+  [
+    studentsStore.loading,
+    enrollmentsStore.loading,
+    paymentsStore.loading,
+    coursesStore.loading,
+    gradesStore.loading,
+    certificatesStore.loading,
+  ].some(Boolean),
+)
+
+const appErrors = computed(() =>
+  [
+    studentsStore.error,
+    enrollmentsStore.error,
+    paymentsStore.error,
+    coursesStore.error,
+    gradesStore.error,
+    certificatesStore.error,
+    authError.value,
+  ].filter(Boolean),
+)
+
+function handleAuthError(event) {
+  authError.value =
+    event.detail?.status === 403
+      ? 'Tu rol no tiene permisos para esta accion.'
+      : 'La sesion no es valida o expiro.'
+}
+
+async function bootstrapData() {
+  authError.value = ''
   await Promise.allSettled([studentsStore.fetchStudents(), enrollmentsStore.fetchCatalogs()])
   await Promise.allSettled([
     enrollmentsStore.fetchEnrollments(),
@@ -48,6 +88,15 @@ onMounted(async () => {
     gradesStore.fetchGrades(),
     certificatesStore.fetchCertificates(),
   ])
+}
+
+onMounted(async () => {
+  window.addEventListener('academic-management:auth-error', handleAuthError)
+  await bootstrapData()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('academic-management:auth-error', handleAuthError)
 })
 </script>
 
@@ -80,14 +129,25 @@ onMounted(async () => {
         <div class="user-card">
           <span class="avatar">SM</span>
           <div>
-            <strong>Suany D. Medina</strong>
-            <small>{{ t('role') }}</small>
+            <strong>{{ auth.user.name }}</strong>
+            <small>{{ auth.roleLabel || t('role') }}</small>
           </div>
           <ChevronDown :size="18" />
         </div>
       </header>
 
       <main class="workspace">
+        <div v-if="appLoading" class="app-status loading-state" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          {{ t('loading') }}
+        </div>
+
+        <div v-if="appErrors.length" class="app-status error-state" role="alert">
+          <strong>{{ t('apiErrorTitle') }}</strong>
+          <span>{{ appErrors[0] }}</span>
+          <button type="button" @click="bootstrapData">{{ t('retry') }}</button>
+        </div>
+
         <RouterView />
       </main>
     </div>
@@ -278,6 +338,91 @@ button {
   min-width: 0;
 }
 
+.app-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 32px 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: var(--panel);
+  box-shadow: 0 8px 28px rgba(18, 35, 72, 0.06);
+}
+
+.loading-state {
+  color: var(--muted);
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 3px solid var(--line);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 850ms linear infinite;
+}
+
+.error-state {
+  align-items: flex-start;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 9%, var(--panel));
+}
+
+.error-state strong {
+  color: var(--text);
+}
+
+.error-state button {
+  margin-left: auto;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--danger);
+  background: var(--panel);
+  font-weight: 750;
+}
+
+.empty-state-page {
+  display: grid;
+  min-height: calc(100vh - 140px);
+  place-items: center;
+  padding: 32px;
+}
+
+.empty-state {
+  display: grid;
+  max-width: 460px;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.empty-state h1,
+.empty-state p {
+  margin: 0;
+}
+
+.empty-state h1 {
+  color: var(--text);
+}
+
+.empty-state a {
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #ffffff;
+  background: var(--primary);
+  text-decoration: none;
+  font-weight: 800;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 980px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -286,6 +431,10 @@ button {
   .topbar {
     justify-content: space-between;
     padding: 12px 18px;
+  }
+
+  .app-status {
+    margin-inline: 18px;
   }
 }
 

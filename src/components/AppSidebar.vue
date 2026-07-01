@@ -12,10 +12,13 @@ import {
   School,
   Users,
 } from '@lucide/vue'
+import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 
 const ui = useUiStore()
+const auth = useAuthStore()
 
 const labels = {
   es: {
@@ -49,14 +52,16 @@ const labels = {
 }
 
 const navItems = [
-  { key: 'dashboard', icon: Gauge, to: '/dashboard' },
-  { key: 'students', icon: Users, to: '/students' },
-  { key: 'enrollments', icon: ClipboardCheck, to: '/enrollments' },
-  { key: 'payments', icon: ReceiptText, to: '/payments' },
-  { key: 'courses', icon: School, to: '/courses' },
-  { key: 'grades', icon: FilePenLine, to: '/grades' },
-  { key: 'certificates', icon: ClipboardSignature, to: '/certificates' },
+  { key: 'dashboard', icon: Gauge, to: '/dashboard', roles: ['admin', 'academic', 'finance', 'teacher', 'student'] },
+  { key: 'students', icon: Users, to: '/students', roles: ['admin', 'academic'] },
+  { key: 'enrollments', icon: ClipboardCheck, to: '/enrollments', roles: ['admin', 'academic'] },
+  { key: 'payments', icon: ReceiptText, to: '/payments', roles: ['admin', 'finance'] },
+  { key: 'courses', icon: School, to: '/courses', roles: ['admin', 'academic', 'teacher'] },
+  { key: 'grades', icon: FilePenLine, to: '/grades', roles: ['admin', 'academic', 'teacher'] },
+  { key: 'certificates', icon: ClipboardSignature, to: '/certificates', roles: ['admin', 'academic'] },
 ]
+
+const visibleNavItems = computed(() => navItems.filter((item) => auth.canAccess(item.roles)))
 
 function t(key) {
   return labels[ui.language][key]
@@ -88,7 +93,7 @@ function t(key) {
     </button>
 
     <nav class="main-nav">
-      <template v-for="item in navItems" :key="item.key">
+      <template v-for="item in visibleNavItems" :key="item.key">
         <RouterLink
           v-if="item.to"
           :to="item.to"

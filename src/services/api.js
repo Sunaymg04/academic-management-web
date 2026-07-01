@@ -20,6 +20,19 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error?.response?.status
+
+    if (status === 401 || status === 403) {
+      window.dispatchEvent(new CustomEvent('academic-management:auth-error', { detail: { status } }))
+    }
+
+    return Promise.reject(error)
+  },
+)
+
 export function setAuthToken(token) {
   if (token) {
     localStorage.setItem(TOKEN_KEY, token)
