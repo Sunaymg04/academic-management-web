@@ -6,6 +6,7 @@ import {
   ChevronRight,
   ClipboardCheck,
   FilePenLine,
+  Gauge,
   GraduationCap,
   ReceiptText,
   School,
@@ -19,6 +20,7 @@ const ui = useUiStore()
 const labels = {
   es: {
     university: 'Universidad Nacional',
+    dashboard: 'Dashboard',
     students: 'Estudiantes',
     enrollments: 'Matrícula',
     payments: 'Pagos',
@@ -32,6 +34,7 @@ const labels = {
   },
   en: {
     university: 'National University',
+    dashboard: 'Dashboard',
     students: 'Students',
     enrollments: 'Enrollment',
     payments: 'Payments',
@@ -46,6 +49,7 @@ const labels = {
 }
 
 const navItems = [
+  { key: 'dashboard', icon: Gauge, to: '/dashboard' },
   { key: 'students', icon: Users, to: '/students' },
   { key: 'enrollments', icon: ClipboardCheck, to: '/enrollments' },
   { key: 'payments', icon: ReceiptText, to: '/payments' },

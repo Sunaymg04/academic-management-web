@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import CertificatesView from '@/views/CertificatesView.vue'
 import CoursesView from '@/views/CoursesView.vue'
+import DashboardView from '@/views/DashboardView.vue'
 import EnrollmentsView from '@/views/EnrollmentsView.vue'
 import GradesView from '@/views/GradesView.vue'
 import PaymentsView from '@/views/PaymentsView.vue'
@@ -11,7 +12,12 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: '/students',
+      redirect: '/dashboard',
+    },
+    {
+      path: '/dashboard',
+      name: 'dashboard',
+      component: DashboardView,
     },
     {
       path: '/students',
