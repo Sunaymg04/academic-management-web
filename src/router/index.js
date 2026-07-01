@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import CertificatesView from '@/views/CertificatesView.vue'
 import CoursesView from '@/views/CoursesView.vue'
 import EnrollmentsView from '@/views/EnrollmentsView.vue'
 import GradesView from '@/views/GradesView.vue'
@@ -36,6 +37,11 @@ const router = createRouter({
       path: '/grades',
       name: 'grades',
       component: GradesView,
+    },
+    {
+      path: '/certificates',
+      name: 'certificates',
+      component: CertificatesView,
     },
   ],
 })

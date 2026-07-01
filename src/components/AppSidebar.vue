@@ -1,6 +1,7 @@
 <script setup>
 import {
   Building2,
+  ClipboardSignature,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
@@ -23,6 +24,7 @@ const labels = {
     payments: 'Pagos',
     courses: 'Asignaturas',
     grades: 'Notas',
+    certificates: 'Certificados',
     office: 'Vicerrectorado Académico',
     version: 'Versión 1.0.0',
     collapse: 'Colapsar menú',
@@ -35,6 +37,7 @@ const labels = {
     payments: 'Payments',
     courses: 'Courses',
     grades: 'Grades',
+    certificates: 'Certificates',
     office: 'Academic Vice-Rectorate',
     version: 'Version 1.0.0',
     collapse: 'Collapse menu',
@@ -48,6 +51,7 @@ const navItems = [
   { key: 'payments', icon: ReceiptText, to: '/payments' },
   { key: 'courses', icon: School, to: '/courses' },
   { key: 'grades', icon: FilePenLine, to: '/grades' },
+  { key: 'certificates', icon: ClipboardSignature, to: '/certificates' },
 ]
 
 function t(key) {
