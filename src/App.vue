@@ -1,8 +1,9 @@
 <script setup>
-import { onMounted } from 'vue'
-import { Bell, ChevronDown, Languages, Moon, Sun } from '@lucide/vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { Bell, ChevronDown, Languages, LogOut, Moon, Sun } from '@lucide/vue'
 import { RouterView } from 'vue-router'
 import AppSidebar from '@/components/AppSidebar.vue'
+import { useAuthStore } from '@/stores/auth'
 import { useCertificatesStore } from '@/stores/certificates'
 import { useCoursesStore } from '@/stores/courses'
 import { useEnrollmentsStore } from '@/stores/enrollments'
@@ -12,6 +13,7 @@ import { useStudentsStore } from '@/stores/students'
 import { useUiStore } from '@/stores/ui'
 
 const ui = useUiStore()
+const authStore = useAuthStore()
 const studentsStore = useStudentsStore()
 const enrollmentsStore = useEnrollmentsStore()
 const paymentsStore = usePaymentsStore()
@@ -25,20 +27,40 @@ const labels = {
     language: 'Idioma',
     theme: 'Tema',
     notifications: 'Notificaciones',
+    email: 'Correo',
+    password: 'Contrasena',
+    login: 'Entrar',
+    logout: 'Salir',
+    demo: 'Usa admin@example.edu / password con la data demo del backend.',
   },
   en: {
     role: 'Academic Analyst',
     language: 'Language',
     theme: 'Theme',
     notifications: 'Notifications',
+    email: 'Email',
+    password: 'Password',
+    login: 'Sign in',
+    logout: 'Sign out',
+    demo: 'Use admin@example.edu / password with the backend demo data.',
   },
 }
+
+const loginForm = reactive({
+  email: 'admin@example.edu',
+  password: 'password',
+})
+const loginFeedback = ref('')
+const bootstrapped = ref(false)
+const userRole = computed(() => authStore.roles[0] || t('role'))
 
 function t(key) {
   return labels[ui.language][key]
 }
 
-onMounted(async () => {
+async function loadInitialData() {
+  if (!authStore.isAuthenticated) return
+
   await Promise.allSettled([studentsStore.fetchStudents(), enrollmentsStore.fetchCatalogs()])
   await Promise.allSettled([
     enrollmentsStore.fetchEnrollments(),
@@ -48,11 +70,63 @@ onMounted(async () => {
     gradesStore.fetchGrades(),
     certificatesStore.fetchCertificates(),
   ])
+}
+
+async function submitLogin() {
+  const result = await authStore.login({ ...loginForm })
+
+  loginFeedback.value = result.ok ? '' : result.message
+  if (result.ok) await loadInitialData()
+}
+
+async function logout() {
+  await authStore.logout()
+}
+
+onMounted(async () => {
+  if (authStore.isAuthenticated) {
+    await authStore.fetchMe()
+    await loadInitialData()
+  }
+
+  bootstrapped.value = true
 })
+
+watch(
+  () => authStore.isAuthenticated,
+  (isAuthenticated) => {
+    if (!isAuthenticated) bootstrapped.value = true
+  },
+)
 </script>
 
 <template>
-  <div class="app-shell" :class="{ 'sidebar-collapsed': ui.sidebarCollapsed }">
+  <section v-if="!authStore.isAuthenticated" class="login-screen">
+    <form class="login-panel" @submit.prevent="submitLogin">
+      <div class="login-brand">
+        <strong>Academic Management</strong>
+        <span>{{ t('demo') }}</span>
+      </div>
+
+      <label>
+        {{ t('email') }}
+        <input v-model.trim="loginForm.email" type="email" autocomplete="username" required />
+      </label>
+
+      <label>
+        {{ t('password') }}
+        <input v-model="loginForm.password" type="password" autocomplete="current-password" required />
+      </label>
+
+      <p aria-live="polite">{{ loginFeedback || authStore.error }}</p>
+
+      <button type="submit" class="primary-action" :disabled="authStore.loading">
+        {{ t('login') }}
+      </button>
+    </form>
+  </section>
+
+  <div v-else class="app-shell" :class="{ 'sidebar-collapsed': ui.sidebarCollapsed }">
     <AppSidebar />
 
     <div class="main-column">
@@ -78,17 +152,20 @@ onMounted(async () => {
         </div>
 
         <div class="user-card">
-          <span class="avatar">SM</span>
+          <span class="avatar">{{ authStore.initials }}</span>
           <div>
-            <strong>Suany D. Medina</strong>
-            <small>{{ t('role') }}</small>
+            <strong>{{ authStore.userName }}</strong>
+            <small>{{ userRole }}</small>
           </div>
           <ChevronDown :size="18" />
+          <button type="button" class="icon-button" :title="t('logout')" @click="logout">
+            <LogOut :size="18" />
+          </button>
         </div>
       </header>
 
       <main class="workspace">
-        <RouterView />
+        <RouterView v-if="bootstrapped" />
       </main>
     </div>
   </div>
@@ -276,6 +353,76 @@ button {
 
 .workspace {
   min-width: 0;
+}
+
+.login-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--bg);
+}
+
+.login-panel {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 28px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.login-brand {
+  display: grid;
+  gap: 8px;
+}
+
+.login-brand strong {
+  color: var(--text);
+  font-size: 1.55rem;
+}
+
+.login-brand span,
+.login-panel p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.login-panel label {
+  display: grid;
+  gap: 8px;
+  color: var(--text);
+  font-weight: 750;
+}
+
+.login-panel input {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 12px;
+  color: var(--text);
+  background: var(--panel-soft);
+}
+
+.primary-action {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 16px;
+  color: #ffffff;
+  background: var(--primary);
+  font-weight: 800;
+}
+
+.primary-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 @media (max-width: 980px) {

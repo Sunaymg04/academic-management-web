@@ -49,9 +49,19 @@ function pickDate(...values) {
   return values.find(Boolean)?.slice?.(0, 10) ?? ''
 }
 
+export function normalizeCatalogItem(item) {
+  return {
+    raw: item,
+    id: item.id,
+    code: item.code || item.abbreviation || item.name || String(item.id),
+    name: item.name || item.title || item.label || item.code || String(item.id),
+  }
+}
+
 export function normalizeStudent(student) {
   const faculty = student.faculty || student.career?.faculty || student.group?.career?.faculty
-  const program = student.program || student.career || student.group?.career
+  const program = student.program || student.career || student.group?.career || student.group?.program
+  const group = student.group || {}
   const status = student.status || student.academic_status
 
   return {
@@ -68,6 +78,8 @@ export function normalizeStudent(student) {
     programId: program?.id || student.career_id || student.program_id || student.group?.career_id || null,
     faculty: pickName(faculty, student.faculty_name || ''),
     facultyId: faculty?.id || student.faculty_id || program?.faculty_id || null,
+    group: pickName(group, student.group_name || ''),
+    groupId: group?.id || student.group_id || null,
     academicStatus: titleStatus(status, academicStatusMap, 'Active'),
     enrollmentStatus: titleStatus(
       student.enrollment_status || student.current_enrollment?.status,
@@ -125,6 +137,7 @@ export function normalizeEnrollment(enrollment) {
     updatedAt: pickDate(enrollment.updated_at, enrollment.enrolled_at, enrollment.enrollment_date),
     paymentReference: enrollment.payment_reference || '',
     notes: enrollment.notes || '',
+    subjectEnrollmentIds: (enrollment.subject_enrollments || []).map((item) => item.id).filter(Boolean),
     history: normalizeHistory(enrollment.history),
   }
 }
@@ -138,6 +151,7 @@ export function normalizeSubject(subject) {
     apiId: source.id,
     name: source.name || source.subject_name || '',
     credits: Number(source.credits ?? subject.credits ?? 0),
+    subjectEnrollmentId: subject.id || subject.subject_enrollment_id || null,
   }
 }
 
@@ -181,6 +195,10 @@ export function normalizeCourseGroup(group) {
       '',
     teacherId: teacher.id || group.teacher_id || group.professor_id || null,
     group: group.group_code || group.code || group.name || '',
+    courseId: group.course_id || group.course?.id || null,
+    careerId: group.career_id || group.career?.id || null,
+    groupId: group.group_id || group.group?.id || null,
+    curriculumPlanId: group.curriculum_plan_id || group.curriculum_plan?.id || null,
     capacity: Number(group.capacity ?? 0),
     studentIds: students.map((student) => student?.student_code || student?.id).filter(Boolean),
     createdAt: pickDate(group.created_at),
@@ -200,6 +218,7 @@ export function normalizeGrade(grade) {
     apiId: grade.id,
     studentId: student.student_code || grade.student_id,
     studentApiId: grade.student_id || student.id || null,
+    subjectEnrollmentId: grade.subject_enrollment_id || grade.subject_enrollment?.id || null,
     courseId: offering.group_code || offering.code || grade.course_group_id || grade.subject_offering_id,
     courseApiId: grade.subject_offering_id || grade.course_group_id || offering.id || null,
     subjectCode: course.code || grade.subject_code || '',
@@ -231,6 +250,56 @@ export function normalizeCertificate(certificate) {
   }
 }
 
+export function normalizeApplicant(applicant) {
+  const career = applicant.career || applicant.program || {}
+  const course = applicant.course || applicant.academic_period || {}
+  const group = applicant.group || {}
+
+  return {
+    raw: applicant,
+    id: applicant.applicant_code || `APP-${applicant.id}`,
+    apiId: applicant.id,
+    firstName: applicant.first_name || '',
+    lastName: applicant.last_name || '',
+    documentType: applicant.document_type || 'carnet',
+    documentId: applicant.document_number || '',
+    email: applicant.email || '',
+    phone: applicant.phone || '',
+    career: pickName(career, ''),
+    careerId: career?.id || applicant.career_id || null,
+    course: pickName(course, ''),
+    courseId: course?.id || applicant.course_id || null,
+    group: pickName(group, ''),
+    groupId: group?.id || applicant.group_id || null,
+    status: applicant.status || 'draft',
+    source: applicant.source || '',
+    applicationDate: pickDate(applicant.application_date, applicant.created_at),
+    notes: applicant.notes || '',
+    documents: (applicant.documents || []).map(normalizeApplicationDocument),
+    decisions: applicant.decisions || [],
+    interviews: applicant.interviews || [],
+    studentId: applicant.student_id || applicant.student?.id || null,
+  }
+}
+
+export function normalizeApplicationDocument(document) {
+  return {
+    raw: document,
+    id: `DOC-${document.id}`,
+    apiId: document.id,
+    applicantId: document.applicant?.applicant_code || document.applicant_id,
+    applicantApiId: document.applicant_id || document.applicant?.id || null,
+    type: document.type || '',
+    name: document.name || '',
+    filePath: document.file_path || '',
+    fileHash: document.file_hash || '',
+    status: document.status || 'pending',
+    verifiedByUserId: document.verified_by_user_id || document.verified_by?.id || null,
+    verifiedAt: pickDate(document.verified_at),
+    rejectionReason: document.rejection_reason || '',
+  }
+}
+
 export function normalizeHistory(history = []) {
   if (!Array.isArray(history)) return []
 
@@ -250,8 +319,8 @@ export function toBackendStudent(payload) {
     document_number: payload.documentId,
     email: payload.email,
     phone: payload.phone,
-    career_id: payload.programId,
-    faculty_id: payload.facultyId,
+    group_id: payload.groupId || null,
+    birth_date: payload.birthDate || null,
     admission_date: payload.admissionDate,
     status: payload.academicStatus?.toLowerCase().replaceAll(' ', '_') || 'active',
   }
@@ -266,5 +335,41 @@ export function toBackendEnrollment(payload) {
     status: 'active',
     subject_codes: payload.subjectCodes,
     notes: payload.notes,
+  }
+}
+
+export function toBackendApplicant(payload) {
+  return {
+    institution_id: payload.institutionId || null,
+    campus_id: payload.campusId || null,
+    career_id: payload.careerId || null,
+    course_id: payload.courseId || null,
+    group_id: payload.groupId || null,
+    applicant_code: payload.id,
+    first_name: payload.firstName,
+    last_name: payload.lastName,
+    document_type: payload.documentType || 'carnet',
+    document_number: payload.documentId,
+    email: payload.email || null,
+    phone: payload.phone || null,
+    birth_date: payload.birthDate || null,
+    application_date: payload.applicationDate || new Date().toISOString().slice(0, 10),
+    source: payload.source || null,
+    status: payload.status || 'draft',
+    notes: payload.notes || null,
+  }
+}
+
+export function toBackendApplicationDocument(payload) {
+  return {
+    applicant_id: payload.applicantApiId || payload.applicantId,
+    type: payload.type,
+    name: payload.name,
+    file_path: payload.filePath || null,
+    file_hash: payload.fileHash || null,
+    status: payload.status || 'pending',
+    verified_by_user_id: payload.verifiedByUserId || null,
+    verified_at: payload.verifiedAt || null,
+    rejection_reason: payload.rejectionReason || null,
   }
 }

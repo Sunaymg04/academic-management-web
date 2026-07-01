@@ -62,17 +62,39 @@ export const useCoursesStore = defineStore('courses', () => {
     try {
       const response = await api.get('/course-groups', { params })
       const rows = unwrapData(response).map(normalizeCourseGroup)
+      const hydratedRows = await Promise.all(rows.map(hydrateCourseStudents))
 
-      courses.value = rows
-      selectedCourseId.value = rows[0]?.id ?? null
+      courses.value = hydratedRows
+      selectedCourseId.value = hydratedRows[0]?.id ?? null
 
-      return { ok: true, courses: rows }
+      return { ok: true, courses: hydratedRows }
     } catch (requestError) {
       error.value = apiMessage(requestError, 'No se pudieron cargar los grupos.')
 
       return { ok: false, message: error.value }
     } finally {
       loading.value = false
+    }
+  }
+
+  async function hydrateCourseStudents(course) {
+    if (!course.apiId) return course
+
+    try {
+      const response = await api.get(`/course-groups/${course.apiId}/students`)
+      const subjectEnrollments = unwrapData(response)
+      const studentIds = subjectEnrollments
+        .map((item) => item.student?.student_code || item.student_id)
+        .filter(Boolean)
+      const subjectEnrollmentByStudent = Object.fromEntries(
+        subjectEnrollments
+          .map((item) => [item.student?.student_code || item.student_id, item.id])
+          .filter(([studentId, subjectEnrollmentId]) => studentId && subjectEnrollmentId),
+      )
+
+      return { ...course, studentIds, subjectEnrollmentByStudent }
+    } catch {
+      return course
     }
   }
 
@@ -125,9 +147,31 @@ export const useCoursesStore = defineStore('courses', () => {
     if (courses.value[index].studentIds.includes(studentId)) return { ok: false, message: 'Student is already assigned to this group.' }
     if (courses.value[index].studentIds.length >= courses.value[index].capacity) return { ok: false, message: 'Course capacity is already full.' }
 
+    const enrollmentsStore = useEnrollmentsStore()
+    const studentsStore = useStudentsStore()
+    const student = studentsStore.students.find((item) => item.id === studentId || item.apiId === studentId)
+    const enrollment = enrollmentsStore.enrollments.find((item) => {
+      const belongsToStudent = item.studentId === studentId || item.studentApiId === studentId || item.studentApiId === student?.apiId
+      const hasSubject = item.subjects.some((subject) => subject.apiId === courses.value[index].raw.subject_id || subject.code === courses.value[index].subjectCode)
+
+      return belongsToStudent && ['Enrolled', 'Payment Confirmed'].includes(item.status) && hasSubject
+    })
+
+    if (!enrollment) return { ok: false, message: 'No se encontro una matricula activa para esa asignatura.' }
+
     try {
-      const apiId = courses.value[index].apiId || courseId
-      await api.post(`/course-groups/${apiId}/assign-student`, { student_id: studentId })
+      await api.post('/subject-enrollments', {
+        enrollment_id: enrollment.apiId,
+        student_id: student?.apiId || studentId,
+        subject_offering_id: courses.value[index].apiId,
+        subject_id: courses.value[index].raw.subject_id,
+        course_id: courses.value[index].courseId,
+        career_id: courses.value[index].careerId,
+        group_id: courses.value[index].groupId,
+        curriculum_plan_id: courses.value[index].curriculumPlanId,
+        enrolled_at: new Date().toISOString().slice(0, 10),
+        status: 'enrolled',
+      })
       await fetchCourses()
 
       return { ok: true, course: selectedCourse.value }

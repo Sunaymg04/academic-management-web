@@ -1,10 +1,12 @@
 <script setup>
+import { computed } from 'vue'
 import {
   Building2,
   ClipboardSignature,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
+  FileText,
   FilePenLine,
   Gauge,
   GraduationCap,
@@ -13,9 +15,11 @@ import {
   Users,
 } from '@lucide/vue'
 import { RouterLink } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 
 const ui = useUiStore()
+const authStore = useAuthStore()
 
 const labels = {
   es: {
@@ -24,6 +28,7 @@ const labels = {
     students: 'Estudiantes',
     enrollments: 'Matrícula',
     payments: 'Pagos',
+    admissions: 'Admisiones',
     courses: 'Asignaturas',
     grades: 'Notas',
     certificates: 'Certificados',
@@ -38,6 +43,7 @@ const labels = {
     students: 'Students',
     enrollments: 'Enrollment',
     payments: 'Payments',
+    admissions: 'Admissions',
     courses: 'Courses',
     grades: 'Grades',
     certificates: 'Certificates',
@@ -49,14 +55,19 @@ const labels = {
 }
 
 const navItems = [
-  { key: 'dashboard', icon: Gauge, to: '/dashboard' },
-  { key: 'students', icon: Users, to: '/students' },
-  { key: 'enrollments', icon: ClipboardCheck, to: '/enrollments' },
-  { key: 'payments', icon: ReceiptText, to: '/payments' },
-  { key: 'courses', icon: School, to: '/courses' },
-  { key: 'grades', icon: FilePenLine, to: '/grades' },
-  { key: 'certificates', icon: ClipboardSignature, to: '/certificates' },
+  { key: 'dashboard', icon: Gauge, to: '/dashboard', permissions: ['reports.academic.view', 'reports.finance.view'] },
+  { key: 'students', icon: Users, to: '/students', permissions: ['students.view', 'students.manage'] },
+  { key: 'enrollments', icon: ClipboardCheck, to: '/enrollments', permissions: ['enrollments.view', 'enrollments.manage'] },
+  { key: 'payments', icon: ReceiptText, to: '/payments', permissions: ['finances.view', 'finances.manage'] },
+  { key: 'admissions', icon: FileText, to: '/admissions', permissions: ['admissions.manage'] },
+  { key: 'courses', icon: School, to: '/courses', permissions: ['subject_enrollments.view', 'subject_enrollments.manage'] },
+  { key: 'grades', icon: FilePenLine, to: '/grades', permissions: ['grades.view', 'grades.manage'] },
+  { key: 'certificates', icon: ClipboardSignature, to: '/certificates', permissions: ['reports.academic.view', 'academic_history.view'] },
 ]
+
+const visibleNavItems = computed(() =>
+  navItems.filter((item) => !item.permissions || authStore.hasPermission(...item.permissions)),
+)
 
 function t(key) {
   return labels[ui.language][key]
@@ -88,7 +99,7 @@ function t(key) {
     </button>
 
     <nav class="main-nav">
-      <template v-for="item in navItems" :key="item.key">
+      <template v-for="item in visibleNavItems" :key="item.key">
         <RouterLink
           v-if="item.to"
           :to="item.to"

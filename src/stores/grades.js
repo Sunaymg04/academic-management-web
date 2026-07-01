@@ -38,6 +38,7 @@ export const useGradesStore = defineStore('grades', () => {
           rows.push({
             studentId: student.id,
             courseId: course.id,
+            subjectEnrollmentId: course.subjectEnrollmentByStudent?.[student.id] || course.subjectEnrollmentByStudent?.[student.apiId],
             label: `${student.id} - ${student.firstName} ${student.lastName} - ${course.subjectCode}`,
           })
         }
@@ -77,7 +78,13 @@ export const useGradesStore = defineStore('grades', () => {
     const student = studentsStore.students.find((item) => item.id === payload.studentId)
     const course = coursesStore.courses.find((item) => item.id === payload.courseId)
 
+    const subjectEnrollmentId =
+      payload.subjectEnrollmentId ||
+      course?.subjectEnrollmentByStudent?.[payload.studentId] ||
+      course?.subjectEnrollmentByStudent?.[student?.apiId]
+
     if (!course) return { ok: false, message: 'Course group was not found.' }
+    if (!subjectEnrollmentId) return { ok: false, message: 'Primero matricula al estudiante en la asignatura.' }
     if (existing && !payload.reason?.trim()) {
       return { ok: false, message: 'A change reason is required to preserve academic traceability.' }
     }
@@ -85,10 +92,14 @@ export const useGradesStore = defineStore('grades', () => {
     try {
       const body = {
         student_id: student?.apiId || payload.studentId,
-        subject_offering_id: course?.apiId || payload.courseId,
+        subject_enrollment_id: subjectEnrollmentId,
+        subject_offering_id: course.apiId || payload.courseId,
+        subject_id: course.raw?.subject_id || null,
         raw_value: payload.score === '' ? null : Number(payload.score),
         status: payload.status || 'published',
         change_reason: payload.reason,
+        evaluated_at: new Date().toISOString().slice(0, 10),
+        is_final: true,
       }
       const response = existing?.apiId
         ? await api.put(`/grades/${existing.apiId}`, body)
@@ -120,6 +131,7 @@ export const useGradesStore = defineStore('grades', () => {
     return upsertGrade({
       studentId: gradeRecords.value[index].studentId,
       courseId: gradeRecords.value[index].courseId,
+      subjectEnrollmentId: gradeRecords.value[index].subjectEnrollmentId,
       score: gradeRecords.value[index].score,
       status: 'published',
       reason,

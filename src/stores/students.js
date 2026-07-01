@@ -47,6 +47,24 @@ export const useStudentsStore = defineStore('students', () => {
     })
   }
 
+  async function checkDuplicate(candidate, ignoredId = null) {
+    try {
+      const response = await api.get('/students/check-duplicate', {
+        params: {
+          document_number: candidate.documentId || undefined,
+          email: candidate.email || undefined,
+          ignore_student_id: ignoredId || undefined,
+        },
+      })
+
+      return response.data
+    } catch {
+      const duplicate = findDuplicate(candidate, ignoredId)
+
+      return { duplicate: Boolean(duplicate), matches: duplicate ? [duplicate] : [] }
+    }
+  }
+
   async function fetchStudents(params = {}) {
     loading.value = true
     error.value = ''
@@ -69,12 +87,14 @@ export const useStudentsStore = defineStore('students', () => {
   }
 
   async function createStudent(payload) {
-    const duplicate = findDuplicate(payload)
+    const duplicate = await checkDuplicate(payload)
 
-    if (duplicate) {
+    if (duplicate.duplicate) {
+      const match = duplicate.matches?.[0]
+
       return {
         ok: false,
-        message: `Posible duplicado detectado: ${duplicate.id} ya usa ese documento o correo.`,
+        message: `Posible duplicado detectado: ${match?.student_code || match?.id || 'otro estudiante'} ya usa ese documento o correo.`,
       }
     }
 
@@ -96,12 +116,14 @@ export const useStudentsStore = defineStore('students', () => {
 
     if (index === -1) return { ok: false, message: 'No se encontro el estudiante.' }
 
-    const duplicate = findDuplicate(payload, studentId)
+    const duplicate = await checkDuplicate(payload, students.value[index].apiId)
 
-    if (duplicate) {
+    if (duplicate.duplicate) {
+      const match = duplicate.matches?.[0]
+
       return {
         ok: false,
-        message: `Posible duplicado detectado: ${duplicate.id} ya usa ese documento o correo.`,
+        message: `Posible duplicado detectado: ${match?.student_code || match?.id || 'otro estudiante'} ya usa ese documento o correo.`,
       }
     }
 
@@ -181,6 +203,7 @@ export const useStudentsStore = defineStore('students', () => {
     loading,
     error,
     fetchStudents,
+    checkDuplicate,
     createStudent,
     updateStudent,
     applyEnrollment,

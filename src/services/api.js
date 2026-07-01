@@ -1,7 +1,8 @@
 import axios from 'axios'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api'
-const TOKEN_KEY = 'academic_management_token'
+export const TOKEN_KEY = 'academic_management_token'
+export const USER_KEY = 'academic_management_user'
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -20,11 +21,44 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      setAuthToken(null)
+      localStorage.removeItem(USER_KEY)
+      window.dispatchEvent(new CustomEvent('academic-management:unauthorized'))
+    }
+
+    return Promise.reject(error)
+  },
+)
+
 export function setAuthToken(token) {
   if (token) {
     localStorage.setItem(TOKEN_KEY, token)
   } else {
     localStorage.removeItem(TOKEN_KEY)
+  }
+}
+
+export function getAuthToken() {
+  return localStorage.getItem(TOKEN_KEY)
+}
+
+export function setStoredUser(user) {
+  if (user) {
+    localStorage.setItem(USER_KEY, JSON.stringify(user))
+  } else {
+    localStorage.removeItem(USER_KEY)
+  }
+}
+
+export function getStoredUser() {
+  try {
+    return JSON.parse(localStorage.getItem(USER_KEY))
+  } catch {
+    return null
   }
 }
 
